@@ -6,6 +6,7 @@ import java.util.Set;
 import java.net.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -26,9 +27,9 @@ public class SimpleClient {
 
 	private static String splitsDestinationDirectory = "/tmp/retang/splits/";
 
-	private static String originalFileName = "./sante_publique.txt";
+	private static String originalFileName = "./split0.txt";
 
-	private static int staticSplitSize = 16; // splitSize in KB
+	private static int staticSplitSize = 4; // splitSize in KB
 
 	public static void sendObject(SocketChannel client, Object object) {
 
@@ -85,28 +86,39 @@ public class SimpleClient {
 		int splitSize = staticSplitSize * 1024;
 		int nbSplits = (int) Math.ceil(fileSize / splitSize);
 
-		FileInputStream fis = null;
-		FileReader fr = null;
-		FileOutputStream fos = null;
+		BufferedReader br = null;
+		BufferedWriter bw = null;
 
 		// Split the file in splitSize KB chunks
 		try {
-			fis = new FileInputStream(file);
-			fr = new FileReader(fis);
+			br = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
 
+			String line = null;
 			for (int i = 0; i < nbSplits; i++) {
 				String splitName = splitsSourceDirectory + "/split" + i + ".txt";
 				File split = new File(splitName);
+				bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(split)));
+				
+				if (line != null) {
+					bw.write(line);
+				}
+				line = br.readLine();
+				int byteRead = line.getBytes().length;
+				while (line != null && byteRead < splitSize) {
+					bw.write(line);
+					bw.newLine();
+					line = br.readLine();
+					if (line != null) {
+						byteRead += line.getBytes().length;
+					}
+				}
 
-				fos = new FileOutputStream(split);
-
-				byte[] buffer = new byte[splitSize];
-				int nbBytesRead = fis.read(buffer);
-				fos.write(buffer, 0, nbBytesRead);
-				System.out.println("Split " + i + " created.");
-				fos.close();
+				bw.close();
+				System.out.println("Split " + i + " of " + nbSplits + " done.");
 			}
-			fis.close();
+
+			br.close();
+			
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -160,11 +172,11 @@ public class SimpleClient {
 		}
 		MachineList machineList = new MachineList(machinesArray);
 
-		// // Cleans the splits directory
-		// cleanDirectory(splitsSourceDirectory);
+		// Cleans the splits directory
+		cleanDirectory(splitsSourceDirectory);
 
-		// // Make splits of 32KB from the original file
-		// makeSplitsFromFile(originalFileName);
+		// Make splits of 32KB from the original file
+		makeSplitsFromFile(originalFileName);
 
 		ArrayList<SocketChannel> sockets = new ArrayList<SocketChannel>();
 		for (String machine: machines) { // Open a socket connection to all servers
@@ -209,7 +221,7 @@ public class SimpleClient {
 				sendObject(sck, newSplit);
 				System.out.println("C: Split " + newSplit.getFileName() + " sent to " + sck.getRemoteAddress());
 				n_splits_sent[machineToSendSplitToIndex]++;
-				Thread.sleep(400);
+				Thread.sleep(1000);
 			} catch (IOException e) {
 				e.printStackTrace();
 			} catch (InterruptedException e) {

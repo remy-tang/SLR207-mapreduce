@@ -214,11 +214,11 @@ public class WorkerSender extends Thread {
                                 BigInteger encodedWord = new BigInteger(wordAsInt);
                                 String wordMachine = machines.getMachines().get(encodedWord.mod(BigInteger.valueOf(machines.getMachines().size())).intValue());
                                 Word currentEncodedWord = new Word(wordInit);
-                                try {
-                                    System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " WS : sending word '" + currentEncodedWord.getWord() + "' to " + wordMachine);
-                                } catch (UnknownHostException e) {
-                                    e.printStackTrace();
-                                }
+                                // try {
+                                //     System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " WS : sending word '" + currentEncodedWord.getWord() + "' to " + wordMachine);
+                                // } catch (UnknownHostException e) {
+                                //     e.printStackTrace();
+                                // }
                                 this.sendObject(wordMachine, currentEncodedWord);
                             }
 

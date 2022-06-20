@@ -103,11 +103,11 @@ public class ListenerReducer extends Thread {
 			If the word is not in the HashMap, add it with count 1.
 		 */
 
-		try {
-			System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Word received : " + word.getWord()); 
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+		// try {
+		// 	System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Word received : " + word.getWord()); 
+		// } catch (Exception e) {
+		// 	e.printStackTrace();
+		// }
 
 		String wordString = word.getWord();
 		
@@ -177,7 +177,11 @@ public class ListenerReducer extends Thread {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-			
+
+		// Keep input streams and buffers for each socket
+		HashMap<SocketChannel, ObjectInputStream> inputStreams = new HashMap<SocketChannel, ObjectInputStream>();
+		HashMap<SocketChannel, ByteBuffer> buffers = new HashMap<SocketChannel, ByteBuffer>();
+
 		while (true) {
 			try {
 				listenerSelector.select(); // Blocks until at least one channel is ready.
@@ -193,25 +197,31 @@ public class ListenerReducer extends Thread {
 						client.configureBlocking(false);
 						client.register(listenerSelector, SelectionKey.OP_READ);
 						System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Connection accepted from client: " + client.getRemoteAddress());
+
+						// Buffer to read data (objects)
+						ByteBuffer tempBuf = ByteBuffer.allocate(128 * 1024);
+						// Open object stream to get objects back
+						ObjectInputStream tempOis = new ObjectInputStream(new ByteArrayInputStream(tempBuf.array()));
+
+						inputStreams.put(client, tempOis);
+						buffers.put(client, tempBuf);
 					} else if (key.isReadable()) {
 						// Read object from ByteBuffer
 						SocketChannel currentClient = (SocketChannel) key.channel();
 
-						// Buffer to read data (objects)
-						ByteBuffer buffer = ByteBuffer.allocate(128 * 1024);
-						currentClient.read(buffer); // Read data from the client and put it in the buffer.
-						
-						if (buffer.position() == 0) {
-							// If the buffer is empty, we skip this iteration.
-							iter.remove();
-							continue;
-						}
+						ObjectInputStream byteOos = inputStreams.get(currentClient);
+						ByteBuffer buffer = buffers.get(currentClient);
 
-						// Open object stream to get objects back
-						ObjectInputStream byteOos = null;
+						// Read data from the client and put it in the buffer.
+						currentClient.read(buffer); 
+						byteOos = inputStreams.get(currentClient);
+
 						try {
-							if (buffer != null) {
-								byteOos = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
+							if (buffer.position() == 0) {
+								// If the buffer is empty, we skip this iteration.
+								iter.remove();
+								continue;
+							} else if (buffer != null) {
 								receivedObject = byteOos.readObject();
 							}
 						} catch (ClassNotFoundException e) {
@@ -243,6 +253,11 @@ public class ListenerReducer extends Thread {
 						} else if (receivedObject instanceof FinishedMachine) {
 							finishedMachines++;
 							if (numberOfMachines > 0 && finishedMachines == numberOfMachines) {
+								// Close all input streams
+								for (ObjectInputStream ois : inputStreams.values()) {
+									ois.close();
+								}
+
 								// Tell WorkerSender to send counted words back to the client
 								pos.write(4); // 4 when all machines have finished
 								pos.flush();
