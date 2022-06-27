@@ -49,8 +49,17 @@ public class ListenerReducer extends Thread {
 	// Queue to send strings from ListenerReducer to WorkerSender threads.
 	private final ConcurrentLinkedQueue<String> splitQueue;
 
+	// Count the number of machines that have finished.
+	private static int finishedMachines = 0;
+
+	// Selectable channel to bind sockets to
+	private static ServerSocketChannel listenerServerSocket = null;
+
 	// Keep Hashmaps of buffers for each client
 	private static HashMap<SocketChannel, ByteBuffer> buffers = new HashMap<SocketChannel, ByteBuffer>();
+
+	// To end the thread from dealWithReceivedObject
+	private static boolean end = false;
 
     ListenerReducer(MachineList machines,
 					HashMap<String, Integer> myWords,
@@ -148,20 +157,67 @@ public class ListenerReducer extends Thread {
 			e.printStackTrace();
 		}
 	}
+
+	public void dealWithReceivedObject(Object receivedObject) {
+		/** Deal with received objects.
+		 * 	If the object is a Split, save the split locally.
+		 * 	If the object is a Word, increment the count of the word in the HashMap.
+		 * 	If the object is a MachineList, save the list of machines.
+		 * 	If the object is a String, save the client address.
+		 */
+
+		 // Deal with received object
+		 if (receivedObject instanceof MachineList) {
+			// Save list of machines
+			receivedMachines((MachineList) receivedObject);
+
+		} else if (receivedObject instanceof Split) {
+			// Save split
+			receivedSplit((Split)receivedObject);
+
+		} else if (receivedObject instanceof SplitCount) {
+			try {
+				pos.write(3); // send 3 to WS when all splits are received
+				pos.flush();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
+		} else if (receivedObject instanceof Word) {
+			// Add word to the local list of words or increment the counter.
+			receivedWord((Word)receivedObject);
+
+		} else if (receivedObject instanceof FinishedMachine) {
+			finishedMachines++;
+			if (numberOfMachines > 0 && finishedMachines == numberOfMachines) {
+				// // Close all input streams
+				// for (ObjectInputStream ois : inputStreams.values()) {
+				// 	ois.close();
+				// }
+
+				try {
+					// Tell WorkerSender to send counted words back to the client
+					pos.write(4); // 4 when all machines have finished
+					pos.flush();
+					// Close all sockets
+					listenerServerSocket.close();
+					// Exit the thread
+					System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: All machines have finished, ending thread");
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				end = true;
+			}
+		}
+	}
     
     public void run() {
 	
 		// To received objects from the input stream.
 		Object receivedObject = null;
 
-		// Count the number of machines that have finished.
-		int finishedMachines = 0;
-
 		// Selector to handle multiple sockets (different ports)
 		Selector listenerSelector = null;
-
-		// Selectable channel to bind sockets to
-		ServerSocketChannel listenerServerSocket = null;
 
 		try {
 			// Open selector and selectable sockets and configure them properly
@@ -206,8 +262,9 @@ public class ListenerReducer extends Thread {
 						SocketChannel currentClient = (SocketChannel) key.channel();
 
 						ByteBuffer buffer = buffers.get(currentClient);
-						buffer.clear();
+
 						// Read data from the client and put it in the buffer.
+						buffer.clear();
 						currentClient.read(buffer); 
 						
 						// // Open object stream to get objects back
@@ -235,39 +292,10 @@ public class ListenerReducer extends Thread {
 						}
 						
 						// Deal with received object
-						if (receivedObject instanceof MachineList) {
-							// Save list of machines
-							receivedMachines((MachineList) receivedObject);
-
-						} else if (receivedObject instanceof Split) {
-							// Save split
-							receivedSplit((Split)receivedObject);
-
-						} else if (receivedObject instanceof SplitCount) {
-							pos.write(3); // 3 when all splits are received
-							pos.flush();
-
-						} else if (receivedObject instanceof Word) {
-							// Add word to the local list of words or increment the counter.
-							receivedWord((Word)receivedObject);
-
-						} else if (receivedObject instanceof FinishedMachine) {
-							finishedMachines++;
-							if (numberOfMachines > 0 && finishedMachines == numberOfMachines) {
-								// // Close all input streams
-								// for (ObjectInputStream ois : inputStreams.values()) {
-								// 	ois.close();
-								// }
-
-								// Tell WorkerSender to send counted words back to the client
-								pos.write(4); // 4 when all machines have finished
-								pos.flush();
-								// Close all sockets
-								listenerServerSocket.close();
-								// Exit the thread
-								System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: All machines have finished, ending thread");
-								return;
-							}
+						dealWithReceivedObject(receivedObject);
+						if (end) {
+							// If the flag to end is true, then we exit the thread.
+							return;
 						}
 					}
 					// Remove element from the iterator to get the next element.
