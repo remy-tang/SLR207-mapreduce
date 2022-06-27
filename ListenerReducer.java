@@ -210,7 +210,7 @@ public class ListenerReducer extends Thread {
 						// Read data from the client and put it in the buffer.
 						currentClient.read(buffer); 
 						
-						// Open object stream to get objects back
+						// // Open object stream to get objects back
 						ObjectInputStream byteOos = null;
 						try {
 							if (buffer.position() == 0) {
@@ -218,19 +218,13 @@ public class ListenerReducer extends Thread {
 								// System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Empty buffer received");
 								iter.remove();
 								continue;
-							} 
-							
-							// Else we open a stream to read objects.
-							byteOos = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
-							while (buffer.hasRemaining()) {
+							} else if (buffer != null) {
 								// Open object stream to get objects back
-								
+								byteOos = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
 								receivedObject = byteOos.readObject();
 
-								
+								byteOos.close();
 							}
-							// Finally, we close the input stream.
-							byteOos.close();
 						} catch (ClassNotFoundException e) {
 							e.printStackTrace();
 						} catch (StreamCorruptedException e) {
