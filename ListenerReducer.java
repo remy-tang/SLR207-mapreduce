@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.io.ObjectInputStream;
 import java.io.PipedOutputStream;
+import java.io.StreamCorruptedException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -48,6 +49,9 @@ public class ListenerReducer extends Thread {
 	// Queue to send strings from ListenerReducer to WorkerSender threads.
 	private final ConcurrentLinkedQueue<String> splitQueue;
 
+	// Keep Hashmaps of buffers for each client
+	private static HashMap<SocketChannel, ByteBuffer> buffers = new HashMap<SocketChannel, ByteBuffer>();
+
     ListenerReducer(MachineList machines,
 					HashMap<String, Integer> myWords,
 					PipedOutputStream pos,
@@ -79,6 +83,7 @@ public class ListenerReducer extends Thread {
 				File dstFile = new File(outputFile);
 				bos = new BufferedOutputStream(new FileOutputStream(dstFile));
 				bos.write(split.getFileData());
+
 				bos.flush();
 				bos.close();
 				System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Split received : " + outputFile + " is successfully saved");
@@ -103,11 +108,11 @@ public class ListenerReducer extends Thread {
 			If the word is not in the HashMap, add it with count 1.
 		 */
 
-		// try {
-		// 	System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Word received : " + word.getWord()); 
-		// } catch (Exception e) {
-		// 	e.printStackTrace();
-		// }
+		try {
+			System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Word received : " + word.getWord()); 
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 
 		String wordString = word.getWord();
 		
@@ -178,10 +183,6 @@ public class ListenerReducer extends Thread {
 			e.printStackTrace();
 		}
 
-		// Keep input streams and buffers for each socket
-		HashMap<SocketChannel, ObjectInputStream> inputStreams = new HashMap<SocketChannel, ObjectInputStream>();
-		HashMap<SocketChannel, ByteBuffer> buffers = new HashMap<SocketChannel, ByteBuffer>();
-
 		while (true) {
 			try {
 				listenerSelector.select(); // Blocks until at least one channel is ready.
@@ -198,41 +199,45 @@ public class ListenerReducer extends Thread {
 						client.register(listenerSelector, SelectionKey.OP_READ);
 						System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Connection accepted from client: " + client.getRemoteAddress());
 
-						// Buffer to read data (objects)
-						ByteBuffer tempBuf = ByteBuffer.allocate(128 * 1024);
-						// Open object stream to get objects back
-						ObjectInputStream tempOis = new ObjectInputStream(new ByteArrayInputStream(tempBuf.array()));
-
-						inputStreams.put(client, tempOis);
-						buffers.put(client, tempBuf);
+						buffers.put(client, ByteBuffer.allocate(1024));
+						
 					} else if (key.isReadable()) {
 						// Read object from ByteBuffer
 						SocketChannel currentClient = (SocketChannel) key.channel();
 
-						ObjectInputStream byteOos = inputStreams.get(currentClient);
 						ByteBuffer buffer = buffers.get(currentClient);
-
+						buffer.clear();
 						// Read data from the client and put it in the buffer.
 						currentClient.read(buffer); 
-						byteOos = inputStreams.get(currentClient);
-
+						
+						// Open object stream to get objects back
+						ObjectInputStream byteOos = null;
 						try {
 							if (buffer.position() == 0) {
 								// If the buffer is empty, we skip this iteration.
+								// System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Empty buffer received");
 								iter.remove();
 								continue;
-							} else if (buffer != null) {
+							} 
+							
+							// Else we open a stream to read objects.
+							byteOos = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
+							while (buffer.hasRemaining()) {
+								// Open object stream to get objects back
+								
 								receivedObject = byteOos.readObject();
+
+								
 							}
+							// Finally, we close the input stream.
+							byteOos.close();
 						} catch (ClassNotFoundException e) {
 							e.printStackTrace();
-						} catch (Exception e) {
-							System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Error when creating ObjectInputStream");
+						} catch (StreamCorruptedException e) {
+							System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Corrupted stream");
 							e.printStackTrace();
 							iter.remove();
-							continue;
-						} finally {
-							byteOos.close();
+							return;
 						}
 						
 						// Deal with received object
@@ -244,19 +249,21 @@ public class ListenerReducer extends Thread {
 							// Save split
 							receivedSplit((Split)receivedObject);
 
-						} else if (receivedObject instanceof Word) {
-							// Add word to the local list of words or increment the counter.
-							receivedWord((Word)receivedObject);
 						} else if (receivedObject instanceof SplitCount) {
 							pos.write(3); // 3 when all splits are received
 							pos.flush();
+
+						} else if (receivedObject instanceof Word) {
+							// Add word to the local list of words or increment the counter.
+							receivedWord((Word)receivedObject);
+
 						} else if (receivedObject instanceof FinishedMachine) {
 							finishedMachines++;
 							if (numberOfMachines > 0 && finishedMachines == numberOfMachines) {
-								// Close all input streams
-								for (ObjectInputStream ois : inputStreams.values()) {
-									ois.close();
-								}
+								// // Close all input streams
+								// for (ObjectInputStream ois : inputStreams.values()) {
+								// 	ois.close();
+								// }
 
 								// Tell WorkerSender to send counted words back to the client
 								pos.write(4); // 4 when all machines have finished
@@ -264,11 +271,10 @@ public class ListenerReducer extends Thread {
 								// Close all sockets
 								listenerServerSocket.close();
 								// Exit the thread
-								System.out.println("LR: All machines have finished");
+								System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: All machines have finished, ending thread");
 								return;
 							}
 						}
-						buffer.clear();
 					}
 					// Remove element from the iterator to get the next element.
 					iter.remove();

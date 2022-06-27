@@ -23,13 +23,13 @@ public class SimpleClient {
 
 	private static String[] machines;
 
-	private static String splitsSourceDirectory = "./splits";
+	private static String splitsSourceDirectory = "./little_splits";
 
 	private static String splitsDestinationDirectory = "/tmp/retang/splits/";
 
 	private static String originalFileName = "./split0.txt";
 
-	private static int staticSplitSize = 4; // splitSize in KB
+	private static int staticSplitSize = 32; // splitSize in KB
 
 	public static void sendObject(SocketChannel client, Object object) {
 
@@ -47,11 +47,19 @@ public class SimpleClient {
 			// Write the ByteArrayOutputStream to the SocketChannel
             buffer = ByteBuffer.wrap(baos.toByteArray());
             client.write(buffer);
-            buffer.clear();
+
+			buffer.clear();
 
             // Close the streams
             oosSendObject.close();
             baos.close();
+
+			try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
 
         } catch (UnknownHostException e) {
             System.err.println("Don't know about host " + object);
@@ -100,6 +108,7 @@ public class SimpleClient {
 				bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(split)));
 				
 				if (line != null) {
+					// Write the last line to the split
 					bw.write(line);
 				}
 				line = br.readLine();
@@ -112,13 +121,10 @@ public class SimpleClient {
 						byteRead += line.getBytes().length;
 					}
 				}
-
 				bw.close();
 				System.out.println("Split " + i + " of " + nbSplits + " done.");
 			}
-
 			br.close();
-			
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -172,11 +178,11 @@ public class SimpleClient {
 		}
 		MachineList machineList = new MachineList(machinesArray);
 
-		// Cleans the splits directory
-		cleanDirectory(splitsSourceDirectory);
+		// // Cleans the splits directory
+		// cleanDirectory(splitsSourceDirectory);
 
-		// Make splits of 32KB from the original file
-		makeSplitsFromFile(originalFileName);
+		// // Make splits of 32KB from the original file
+		// makeSplitsFromFile(originalFileName);
 
 		ArrayList<SocketChannel> sockets = new ArrayList<SocketChannel>();
 		for (String machine: machines) { // Open a socket connection to all servers
@@ -221,12 +227,13 @@ public class SimpleClient {
 				sendObject(sck, newSplit);
 				System.out.println("C: Split " + newSplit.getFileName() + " sent to " + sck.getRemoteAddress());
 				n_splits_sent[machineToSendSplitToIndex]++;
-				Thread.sleep(1000);
+				// Thread.sleep(100);
 			} catch (IOException e) {
 				e.printStackTrace();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
 			}
+			// } catch (InterruptedException e) {
+			// 	e.printStackTrace();
+			// }
 		}
 
 		for (int i = 0; i < machines.length; i++) {

@@ -69,10 +69,18 @@ public class WorkerSender extends Thread {
             ByteBuffer buffer = ByteBuffer.wrap(baos.toByteArray());
             clients[index].write(buffer);
             buffer.clear();
-            
+
             // Close the streams
             oosSendObject.close();
             baos.close();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            
+
 
         } catch (UnknownHostException e) {
             System.err.println("Don't know about host " + object);
@@ -105,7 +113,14 @@ public class WorkerSender extends Thread {
 			// Write the ByteArrayOutputStream to the SocketChannel
             buffer = ByteBuffer.wrap(baos.toByteArray());
             client.write(buffer);
-            buffer.clear();
+
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            // buffer.clear();
 
             // Close the streams
             oosSendObject.close();
@@ -204,7 +219,7 @@ public class WorkerSender extends Thread {
                     String currentLine = br.readLine();
                     while (currentLine != null) {
                         // Hash each word
-                        String[] currentWords = currentLine.split("[!.:;_,'@?()/° ]");
+                        String[] currentWords = currentLine.split("[!.:;_,'@?()/° \n\t]+");
                         // String[] currentWords = currentLine.split(" ?(?<!\\G)((?<=[^\\p{Punct}])(?=\\p{Punct})|\\b) ?");
                         for (String wordInit : currentWords) {
                             String wordAsInt = encode(wordInit);
@@ -214,11 +229,11 @@ public class WorkerSender extends Thread {
                                 BigInteger encodedWord = new BigInteger(wordAsInt);
                                 String wordMachine = machines.getMachines().get(encodedWord.mod(BigInteger.valueOf(machines.getMachines().size())).intValue());
                                 Word currentEncodedWord = new Word(wordInit);
-                                // try {
-                                //     System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " WS : sending word '" + currentEncodedWord.getWord() + "' to " + wordMachine);
-                                // } catch (UnknownHostException e) {
-                                //     e.printStackTrace();
-                                // }
+                                try {
+                                    System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " WS : sending word '" + currentEncodedWord.getWord() + "' to " + wordMachine);
+                                } catch (UnknownHostException e) {
+                                    e.printStackTrace();
+                                }
                                 this.sendObject(wordMachine, currentEncodedWord);
                             }
 
@@ -255,7 +270,7 @@ public class WorkerSender extends Thread {
                 try {
                     for (String word : myWords.keySet()) {
                         int num = myWords.get(word);
-                        System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " Word " + word + " found " + num + " times");
+                        System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " : Counted " + num + " " + word);
                         
                     }
                     return;
@@ -268,6 +283,11 @@ public class WorkerSender extends Thread {
                     e.printStackTrace();
                 }
                 // Exit
+                try {
+                    System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " Task complete, ending thread");
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                }
                 return;
             
             }

@@ -3,6 +3,7 @@ import java.util.HashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+import java.net.InetAddress;
 
 /*	Opens socket connection to the client.
 	Opens input an output streams.
@@ -57,10 +58,11 @@ public class SimpleServerProgram {
 		workerSender.start();
 
 		try {
+			// Wait for both threads to finish
 			listenerReducer.join();
 			workerSender.join();
 
-			// Close the pipes.
+			// Close the pipes
 			pos.close();
 			pis.close();
 
