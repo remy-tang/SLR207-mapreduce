@@ -68,20 +68,19 @@ public class WorkerSender extends Thread {
 
             ByteBuffer buffer = ByteBuffer.wrap(baos.toByteArray());
             clients[index].write(buffer);
+            System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + "Sending " + buffer.toString());
             buffer.clear();
 
             // Close the streams
             oosSendObject.close();
             baos.close();
 
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            
-
-
+            // try {
+            //     Thread.sleep(100);
+            // } catch (InterruptedException e) {
+            //     e.printStackTrace();
+            // }
+        
         } catch (UnknownHostException e) {
             System.err.println("Don't know about host " + object);
             e.printStackTrace();

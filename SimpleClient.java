@@ -14,12 +14,12 @@ import java.nio.channels.SocketChannel;
 
 public class SimpleClient {
 
-	private static String addr = "137.194.252.46";	// Client machine address.
+	private static String addr = "137.194.252.46";	// Client machine address (the machine that executes this program).
 	private static int port = 12302;
 
 	// List of all machines participating
 	// String machineNames = "tp-1a226-12.enst.fr tp-1a226-14.enst.fr tp-1a226-16.enst.fr";
-	private static String machineNames = "tp-1a226-12.enst.fr tp-1a226-14.enst.fr tp-1a226-16.enst.fr";
+	private static String machineNames = "tp-5b01-01.enst.fr tp-5b01-02.enst.fr tp-5b01-03.enst.fr";
 
 	private static String[] machines;
 

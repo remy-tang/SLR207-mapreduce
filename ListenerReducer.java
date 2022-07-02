@@ -265,10 +265,13 @@ public class ListenerReducer extends Thread {
 
 						// Read data from the client and put it in the buffer.
 						buffer.clear();
+						// System.out.println("Received buffer" + buffer.toString());
 						currentClient.read(buffer); 
+						// System.out.println("Read buffer " + buffer.toString());
 						
-						// // Open object stream to get objects back
-						ObjectInputStream byteOos = null;
+						// Open object stream to get objects back
+						ObjectInputStream byteOis = null;
+						
 						try {
 							if (buffer.position() == 0) {
 								// If the buffer is empty, we skip this iteration.
@@ -277,10 +280,19 @@ public class ListenerReducer extends Thread {
 								continue;
 							} else if (buffer != null) {
 								// Open object stream to get objects back
-								byteOos = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
-								receivedObject = byteOos.readObject();
+								int bufferSize = buffer.position();
+								byteOis = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
+								System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " Reading " + buffer.toString()+ ", available " + byteOis.available());
+								receivedObject = byteOis.readObject();
+								System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " Read " + buffer.toString());
+								// Deal with received object
+								dealWithReceivedObject(receivedObject);
+								if (end) {
+									// If the flag to end is true, then we exit the thread.
+									return;
+								}
 
-								byteOos.close();
+								byteOis.close();
 							}
 						} catch (ClassNotFoundException e) {
 							e.printStackTrace();
@@ -291,12 +303,7 @@ public class ListenerReducer extends Thread {
 							return;
 						}
 						
-						// Deal with received object
-						dealWithReceivedObject(receivedObject);
-						if (end) {
-							// If the flag to end is true, then we exit the thread.
-							return;
-						}
+
 					}
 					// Remove element from the iterator to get the next element.
 					iter.remove();
