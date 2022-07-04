@@ -1,35 +1,53 @@
 import java.io.*;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Set;
 import java.net.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+// import java.util.Collections;
+// import java.util.Comparator;
+// import java.util.HashMap;
+// import java.util.Iterator;
+// import java.util.List;
+// import java.util.Map;
+// import java.util.Set;
+// import java.nio.CharBuffer;
+// import java.nio.channels.FileChannel;
+// import java.nio.channels.SelectionKey;
+// import java.nio.channels.Selector;
+// import java.nio.channels.ServerSocketChannel;
 
 public class SimpleClient {
 
-	private static String addr = "137.194.252.46";	// Client machine address (the machine that executes this program).
+	private static String addr = "137.194.126.71";	// Client machine address (the machine that executes this program).
 	private static int port = 12302;
 
+	// private static int port_words = 12321; // This port should be open on the client machine
+
 	// List of all machines participating
-	// String machineNames = "tp-1a226-12.enst.fr tp-1a226-14.enst.fr tp-1a226-16.enst.fr";
-	private static String machineNames = "tp-5b01-01.enst.fr tp-5b01-02.enst.fr tp-5b01-03.enst.fr";
+	// private static String machineNames = "tp-t310-13.enst.fr";
+	// private static String machineNames = "tp-t310-13.enst.fr tp-t310-14.enst.fr";
+	// private static String machineNames = "tp-t310-13.enst.fr tp-t310-14.enst.fr tp-t310-16.enst.fr";
+	// private static String machineNames = "tp-t310-13.enst.fr tp-t310-14.enst.fr tp-t310-16.enst.fr tp-1a207-11.enst.fr";
+	private static String machineNames = "tp-t310-13.enst.fr tp-t310-14.enst.fr tp-t310-16.enst.fr tp-1a207-11.enst.fr tp-3b01-02.enst.fr";
 
 	private static String[] machines;
 
-	private static String splitsSourceDirectory = "./little_splits";
+	private static String splitsSourceDirectory = "./splits/";
 
 	private static String splitsDestinationDirectory = "/tmp/retang/splits/";
 
-	private static String originalFileName = "./split0.txt";
+	private static String originalFileName = "./large_txt/lorem.txt";
 
-	private static int staticSplitSize = 32; // splitSize in KB
+	private static int staticSplitSize = 1; // splitSize in KB
+
+	// private static int CLIENT_BUFFER_SIZE = 1024;
+
+	// private static int NUM_WORDS_TO_PRINT = 50;
+
+	// private static HashMap<SocketChannel, ByteBuffer> buffers = new HashMap<SocketChannel, ByteBuffer>();
+
+	// private static HashMap<String, Integer> words = new HashMap<String, Integer>();
 
 	public static void sendObject(SocketChannel client, Object object) {
 
@@ -38,39 +56,36 @@ public class SimpleClient {
 		ByteBuffer buffer = null;
 
         try {
+
 			// Write object to the ByteArrayOutputStream
             baos = new ByteArrayOutputStream();
             oosSendObject = new ObjectOutputStream(baos);
             oosSendObject.writeObject(object);
 			oosSendObject.flush();
 
+			try {
+                Thread.sleep(80);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+			}
+
 			// Write the ByteArrayOutputStream to the SocketChannel
             buffer = ByteBuffer.wrap(baos.toByteArray());
             client.write(buffer);
 
-			buffer.clear();
-
-            // Close the streams
-            oosSendObject.close();
-            baos.close();
-
-			try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-
-        } catch (UnknownHostException e) {
-            System.err.println("Don't know about host " + object);
-            e.printStackTrace();
-            return;
-        } catch (IOException e) {
-            System.err.println("Couldn't get I/O for the connection to " + object);
-            e.printStackTrace();
-            return;
-        }
-    }
+			oosSendObject.close();
+			baos.close();
+		} catch (UnknownHostException e) {
+			System.err.println("Don't know about host " + object);
+			e.printStackTrace();
+			return;
+		} catch (IOException e) {
+			System.err.println("Couldn't get I/O for the connection to " + object);
+			e.printStackTrace();
+			return;
+		}
+	}
+    
 
 	public static void cleanDirectory(String directory) {
 		File dir = new File(directory);
@@ -83,7 +98,7 @@ public class SimpleClient {
 	}
 
 	public static void makeSplitsFromFile(String fileName) {
-		// Makes splits of 64KB from a file.
+		// Makes splits from a file.
 		// The splits are saved in splitsSourceDirectory/fileName.split0, splitsSourceDirectory/fileName.split1, ...
 		// The file is not modified.
 		// The file is assumed to be in the current directory.
@@ -99,20 +114,21 @@ public class SimpleClient {
 
 		// Split the file in splitSize KB chunks
 		try {
-			br = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
+			br = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
 
 			String line = null;
 			for (int i = 0; i < nbSplits; i++) {
+				int byteRead = 0;
 				String splitName = splitsSourceDirectory + "/split" + i + ".txt";
 				File split = new File(splitName);
-				bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(split)));
+				bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(split), "UTF-8"));
 				
 				if (line != null) {
-					// Write the last line to the split
+					// Write the last read line to the split
 					bw.write(line);
+					byteRead += line.getBytes().length;
 				}
 				line = br.readLine();
-				int byteRead = line.getBytes().length;
 				while (line != null && byteRead < splitSize) {
 					bw.write(line);
 					bw.newLine();
@@ -129,9 +145,7 @@ public class SimpleClient {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
-
-			
+		}		
 	}
 	
 
@@ -156,7 +170,16 @@ public class SimpleClient {
 			// Update the Split object
 			split.setFileData(fileBytes);
 			split.setFileName("split" + splitNumber);
-			split.setSender(addr);
+
+			try {
+				if (addr == null) {
+					addr = InetAddress.getLocalHost().getHostAddress();
+				}
+				split.setSender(addr);
+			} catch (UnknownHostException e) {
+				e.printStackTrace();
+			}
+			
 			split.setStatus("Success");
 			split.setDestinationDirectory(splitsDestinationDirectory);
 		} catch (FileNotFoundException e) {
@@ -178,14 +201,15 @@ public class SimpleClient {
 		}
 		MachineList machineList = new MachineList(machinesArray);
 
-		// // Cleans the splits directory
-		// cleanDirectory(splitsSourceDirectory);
+		// Cleans the splits directory
+		cleanDirectory(splitsSourceDirectory);
 
-		// // Make splits of 32KB from the original file
-		// makeSplitsFromFile(originalFileName);
+		// Make splits from the original file
+		makeSplitsFromFile(originalFileName);
 
+		// Open a socket connection to all servers
 		ArrayList<SocketChannel> sockets = new ArrayList<SocketChannel>();
-		for (String machine: machines) { // Open a socket connection to all servers
+		for (String machine: machines) {
 			try {
 				SocketChannel socketOfClient = SocketChannel.open(new InetSocketAddress(machine, port));
 				sockets.add(socketOfClient);
@@ -195,7 +219,8 @@ public class SimpleClient {
 			}
 		}
 
-		for (SocketChannel sck : sockets) { // Send machine list to all servers
+		// Send machine list to all servers
+		for (SocketChannel sck : sockets) {
 			try { 
 				sendObject(sck, machineList);
 				System.out.println("C: Machine List sent to " + sck.getRemoteAddress());
@@ -214,11 +239,19 @@ public class SimpleClient {
 			}
 		}
 
+		try {
+			Thread.sleep(3000); // This sleep is NECESSARY because we are sending multiple objects
+			// Therefore we have to measure time starting from the Reduce operation...
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+
 		// Send the splits to all servers (no redundancy)
 		File dir = new File(splitsSourceDirectory); 
 		File[] directoryListing = dir.listFiles();
 
 		int[] n_splits_sent = new int[machines.length];
+
 		for (int i = 0; i < directoryListing.length; i++) {
 			try	{
 				Split newSplit = makeSplitObject(originalFileName, i);
@@ -248,112 +281,121 @@ public class SimpleClient {
 				e.printStackTrace();
 			}
 		}
-
-
-		// // Open server socket on port 12300 to listen to other machines
-		// // Selector to handle multiple sockets (different ports)
-		// Selector listenerSelector = null;
-
-		// // To received objects from the input stream.
-		// Object receivedObject = null;
-
-		// // Selectable channel to bind sockets to
-		// ServerSocketChannel listenerServerSocket = null;
-		// try {
-		// 	// Open selector and selectable sockets and configure them properly
-		// 	listenerSelector = Selector.open();
-
-		// 	// Create a server socket channel and bind it to the port
-		// 	listenerServerSocket = ServerSocketChannel.open();
-		// 	listenerServerSocket.configureBlocking(false);
-		// 	String myName = InetAddress.getLocalHost().getCanonicalHostName();
-		// 	InetSocketAddress listenerAddress = new InetSocketAddress(myName, port);
-		// 	listenerServerSocket.bind(listenerAddress);
-		// 	System.out.println("Bound machine " + myName + " on port " + port);
-
-		// 	// Register the server socket channel with the selector
-		// 	listenerServerSocket.register(listenerSelector, SelectionKey.OP_ACCEPT);
-			
-		// } catch (IOException e) {
-		// 	e.printStackTrace();
-		// }
-
-		// // Wait for all servers to finish
-
-		// int finishedMachines = 0;
-		// while (true) {
-		// 	try {
-		// 		listenerSelector.select(); // Blocks until at least one channel is ready.
-		// 		Set<SelectionKey> selectedKeys = listenerSelector.selectedKeys();
-		// 		Iterator<SelectionKey> iter = selectedKeys.iterator();
-		// 		while (iter.hasNext()) {
-		// 			// Deal with all connections that are ready at select time.
-		// 			SelectionKey key = iter.next();
-					
-		// 			if (key.isAcceptable()) {
-		// 				// Accept a new connection.
-		// 				SocketChannel client = listenerServerSocket.accept();
-		// 				client.configureBlocking(false);
-		// 				client.register(listenerSelector, SelectionKey.OP_READ);
-		// 				System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Connection accepted from client: " + client.getRemoteAddress());
-		// 			} else if (key.isReadable()) {
-		// 				// Read object from ByteBuffer
-		// 				SocketChannel currentClient = (SocketChannel) key.channel();
-
-		// 				// Buffer to read data (objects)
-		// 				ByteBuffer buffer = ByteBuffer.allocate(2048);
-		// 				currentClient.read(buffer); // Read data from the client and put it in the buffer.
-						
-		// 				if (buffer.position() == 0) {
-		// 					// If the buffer is empty, we skip this iteration.
-		// 					iter.remove();
-		// 					continue;
-		// 				}
-
-		// 				// Open object stream to get objects back
-		// 				ObjectInputStream byteOos = null;
-		// 				try {
-		// 					byteOos = new ObjectInputStream(new ByteArrayInputStream(buffer.array()));
-		// 					receivedObject = byteOos.readObject();
-		// 				} catch (ClassNotFoundException e) {
-		// 					e.printStackTrace();
-		// 				} catch (Exception e) {
-		// 					System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Error when creating ObjectInputStream");
-		// 					e.printStackTrace();
-		// 				} finally {
-		// 					byteOos.close();
-		// 				}
-						
-		// 				// System.out.println("receivedObject: " + receivedObject.toString());
-		// 				// // Deal with received object
-		// 				// if (receivedObject instanceof HashMap) {
-		// 				// 	finishedMachines++;
-		// 				// 	try { 
-		// 				// 		HashMap<String, Integer> words = (HashMap<String, Integer>)receivedObject;
-		// 				// 		for (String word : words.keySet()) {
-		// 				// 			int num = words.get(word);
-		// 				// 			System.out.println("Word " + word + " found " + num + " times");
-		// 				// 		}
-		// 				// 	} catch (ClassCastException e) {
-		// 				// 		System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Error when casting object to HashMap");
-		// 				// 		e.printStackTrace();
-		// 				// 	}
-
-		// 				// 	if (finishedMachines == machineList.getMachines().size()) {
-		// 				// 		// If all machines have finished, we can stop the program
-		// 				// 		System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + "All machines have finished");
-		// 				// 		return;
-		// 				// 	}
-		// 				// }
-		// 			}
-		// 		}
-		// 	} catch (IOException e) {
-		// 		e.printStackTrace();
-		// 	}
-		// }
+		return;
 		
-				// Send quit when all splits are sent
-				// sendObject(socketOfClient, new Quit(machineList.getMachines().size()));
-				// System.out.println("C: Quit sent for machine " + machine);			
+	// 	// Open server socket on port 12300 to listen to other machines
+	// 	// Selector to handle multiple sockets (different ports)
+	// 	Selector listenerSelector = null;
+
+	// 	// Selectable channel to bind sockets to
+	// 	ServerSocketChannel listenerServerSocket = null;
+	// 	try {
+	// 		// Open selector and selectable sockets and configure them properly
+	// 		listenerSelector = Selector.open();
+
+	// 		// Create a server socket channel and bind it to the port
+	// 		listenerServerSocket = ServerSocketChannel.open();
+	// 		listenerServerSocket.configureBlocking(false);
+	// 		String myName = InetAddress.getLocalHost().getCanonicalHostName();
+	// 		InetSocketAddress listenerAddress = new InetSocketAddress(myName, port_words);
+	// 		listenerServerSocket.bind(listenerAddress);
+	// 		System.out.println("Bound machine " + myName + " on port " + port_words);
+
+	// 		// Register the server socket channel with the selector
+	// 		listenerServerSocket.register(listenerSelector, SelectionKey.OP_ACCEPT);
+			
+	// 	} catch (IOException e) {
+	// 		e.printStackTrace();
+	// 	}
+
+	// 	// Wait for all servers to finish
+	// 	int finishedMachines = 0;
+	// 	while (true) {
+	// 		try {
+	// 			listenerSelector.select(); // Blocks until at least one channel is ready.
+	// 			Set<SelectionKey> selectedKeys = listenerSelector.selectedKeys();
+	// 			Iterator<SelectionKey> iter = selectedKeys.iterator();
+				
+	// 			while (iter.hasNext()) {
+	// 				// Deal with all connections that are ready at select time.
+	// 				SelectionKey key = iter.next();
+					
+	// 				if (key.isAcceptable()) {
+	// 					// Accept a new connection.
+	// 					SocketChannel client = listenerServerSocket.accept();
+	// 					client.configureBlocking(false);
+	// 					client.register(listenerSelector, SelectionKey.OP_READ);
+	// 					System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + " LR: Connection accepted from client: " + client.getRemoteAddress());
+
+	// 					buffers.put(client, ByteBuffer.allocate(CLIENT_BUFFER_SIZE));
+						
+	// 				} else if (key.isReadable()) {
+	// 					// Read object from ByteBuffer
+	// 					SocketChannel currentClient = (SocketChannel) key.channel();
+
+	// 					// Read data from the client and put it in the buffer
+	// 					// First clear the buffer, then fill it with data.
+	// 					ByteBuffer buffer = buffers.get(currentClient);
+	// 					buffer.clear();
+
+	// 					// System.out.println("Received buffer" + buffer.toString());
+	// 					currentClient.read(buffer); 
+	// 					try {
+	// 						String wholeString = new String(buffer.array(), 0, buffer.position(), "UTF-8");
+	// 						String [] splitString = wholeString.split("\n");
+
+	// 						// Parse string $integer_word$ into integer and word
+	// 						for (String s : splitString) {
+	// 							if (s.equals("$FINISHED_SENDING_WORDS$")) {
+	// 								finishedMachines++;
+	// 								if (finishedMachines == machineList.getMachines().size()) {
+	// 									// If all machines have finished, we can print the word count and stop the program
+
+	// 									// Sort the words
+	// 									List<Map.Entry<String, Integer>> sortedWordCount = new ArrayList<>(words.entrySet());
+	// 									Collections.sort(sortedWordCount, new ValueThenKeyComparator<String, Integer>());
+
+	// 									int count = 0;
+	// 									for (Map.Entry<String, Integer> entry : sortedWordCount) { // Print the result
+	// 										if (count==NUM_WORDS_TO_PRINT) {
+	// 											break;
+	// 										}
+	// 										System.out.println(entry.getKey() + ":" + entry.getValue());
+	// 										count++;
+	// 									}
+
+	// 									System.out.println(InetAddress.getLocalHost().getCanonicalHostName() + "Done.");
+	// 									for (SocketChannel sck : sockets) { // Close all sockets
+	// 										try {
+	// 											sck.close();
+	// 										} catch (IOException e) {
+	// 											e.printStackTrace();
+	// 										}
+	// 									}
+	// 									return;
+	// 								}
+	// 							} else {
+	// 								String[] splitWord = s.split("$_");
+	// 								String word = splitWord[1];
+	// 								int wordCount = Integer.parseInt(splitWord[0]);
+	// 								words.put(word, wordCount);
+	// 							}
+	// 						}
+
+							
+	// 					} catch (Exception e) {
+	// 						e.printStackTrace();
+	// 					}
+	// 					}
+	// 				}
+	// 			} catch (IOException e) {
+	// 				e.printStackTrace();
+	// 			}
+	// 		} 
+		
+	// 			// Send quit when all splits are sent
+	// 			// sendObject(socketOfClient, new Quit(machineList.getMachines().size()));
+	// 			// System.out.println("C: Quit sent for machine " + machine);		
+			
 	}
 }

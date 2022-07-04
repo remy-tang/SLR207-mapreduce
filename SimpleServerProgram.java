@@ -3,7 +3,7 @@ import java.util.HashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.net.InetAddress;
+import java.nio.channels.SocketChannel;
 
 /*	Opens socket connection to the client.
 	Opens input an output streams.
@@ -22,7 +22,7 @@ public class SimpleServerProgram {
 	private static volatile HashMap<String, Integer> myWords = new HashMap<String, Integer>();
 
 	// Save the client address to send back the results.
-	private static volatile String client = new String();
+	private static volatile SocketChannel clientSocket;
 
 	public static void main(String args[]) {
 
@@ -45,13 +45,13 @@ public class SimpleServerProgram {
 		ListenerReducer listenerReducer = new ListenerReducer(machines,
 																myWords, 
 																pos, 
-																client,
+																clientSocket,
 																splitQueue);
 	
 		WorkerSender workerSender = new WorkerSender(machines,
 														myWords,
 														pis, 
-														client,
+														clientSocket,
 														splitQueue);
 
 		listenerReducer.start();
